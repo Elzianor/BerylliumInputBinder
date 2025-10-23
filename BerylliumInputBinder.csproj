@@ -1,0 +1,30 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0-windows</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <PackageId>BerylliumInputBinder</PackageId>
+        <Version>1.0.0</Version>
+        <Authors>Vladyslav Pysarenko</Authors>
+        <Company>Beryllium Co.</Company>
+        <Description>Class library for managing various types inputs binding to game actions.</Description>
+        <Copyright>Copyright © Beryllium Co. 2025</Copyright>
+        <PackageTags>Beryllium;Game;Games;Input;Binding;Mapping</PackageTags>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <RepositoryUrl>https://github.com/Elzianor/BerylliumInputBinder</RepositoryUrl>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageIcon>logo.png</PackageIcon>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="README.md" Pack="true" PackagePath="\"/>
+        <None Include="logo.png" Pack="true" PackagePath=""/>
+    </ItemGroup>
+
+</Project>
