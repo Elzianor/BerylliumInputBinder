@@ -1,203 +1,118 @@
 ﻿namespace BerylliumInputBinder;
 
-public static class InputBinder
+public class InputBinder
 {
-    private static int _maxInputsForAction;
-    private static readonly Dictionary<Input, GameAction> InputToActionMap;
-    private static readonly Dictionary<RawInput, GameAction[]> RawInputToActionsMap;
+    private readonly ActionToInputsMapping _actionToInputsMap;
+    private readonly InputToActionMapping _inputToActionMap;
 
-    public static readonly Dictionary<GameAction, Input[]> ActionToInputsMap;
+    public int InputBindingsPerAction => _actionToInputsMap.InputBindingsPerAction;
+    public Dictionary<BaseAction, BaseInput[]> ActionToInputsMap => _actionToInputsMap.ActionToInputsMap;
 
-    static InputBinder()
+    public InputBinder(int inputBindingsPerAction = 2)
     {
-        _maxInputsForAction = 2;
-        InputToActionMap = [];
-        ActionToInputsMap = [];
-        RawInputToActionsMap = [];
+        _actionToInputsMap = new ActionToInputsMapping(inputBindingsPerAction);
+        _inputToActionMap = new InputToActionMapping();
     }
 
-    public static void Initialize(int maxInputsForAction)
+    public InputBinderResults TryRegisterAction(BaseAction action)
     {
-        _maxInputsForAction = maxInputsForAction;
-        InputToActionMap.Clear();
-        ActionToInputsMap.Clear();
-        RawInputToActionsMap.Clear();
+        return action == null ? InputBinderResults.ActionNull : _actionToInputsMap.TryRegisterAction(action);
     }
 
-    public static bool TryRegisterAction(GameAction action)
+    public InputBinderResults TryUnregisterAction(BaseAction action)
     {
-        if (ActionToInputsMap.ContainsKey(action)) return false;
+        if (action == null) return InputBinderResults.ActionNull;
 
-        ActionToInputsMap.Add(action, new Input[_maxInputsForAction]);
+        foreach (var input in _actionToInputsMap.GetInputs(action)) _inputToActionMap.RemoveInput(input);
 
-        return true;
+        return _actionToInputsMap.TryUnregisterAction(action);
     }
 
-    public static bool IsInputAlreadyBound(Input input, out GameAction boundAction)
+    public InputBinderResults TryMapInputToAction(BaseAction action,
+        int inputIndex,
+        BaseInput input,
+        bool forceMap,
+        out BaseAction otherAction)
     {
-        boundAction = null;
+        otherAction = null;
 
-        if (!InputToActionMap.TryGetValue(input, out var action)) return false;
+        if (input == null) return InputBinderResults.InputNull;
+        if (action == null) return  InputBinderResults.ActionNull;
+        if (inputIndex < 0 ||
+            inputIndex >= InputBindingsPerAction)
+            return InputBinderResults.IndexOutsideOfRange;
+        if (input.Type != action.Type) return InputBinderResults.TypesMismatch;
 
-        boundAction = action;
+        var inputs = _actionToInputsMap.GetInputs(action);
 
-        return true;
-    }
+        if (inputs == null) return InputBinderResults.Failure;
 
-    public static bool TryBindInput(Input input, GameAction action, int index)
-    {
-        if (index < 0 ||
-            index >= _maxInputsForAction)
-            return false;
+        var previousAction = _inputToActionMap.GetAction(input);
 
-        if (!ActionToInputsMap.ContainsKey(action) &&
-            !TryRegisterAction(action))
-            return false;
-
-        // search if input is bound elsewhere and try to remove it
-        RemoveInput(input);
-
-        AddInput(input, action, index);
-
-        return true;
-    }
-
-    public static void ClearInputAt(GameAction action, int index)
-    {
-        if (index < 0 ||
-            index >= _maxInputsForAction)
-            return;
-        if (!ActionToInputsMap.TryGetValue(action, out var inputs)) return;
-
-        var input = inputs[index];
-        var rawInput = GetRawInput(input);
-
-        if (!RawInputToActionsMap.TryGetValue(rawInput, out var actions)) return;
-
-        inputs[index] = null;
-
-        InputToActionMap.Remove(input);
-
-        RemoveFromRawMap(actions, input.Modifier, rawInput);
-    }
-
-    public static void Update(List<RawInput> rawInputs,
-        bool isWithCtrl = false,
-        bool isWithAlt = false,
-        bool isWithShift = false)
-    {
-        foreach (var rawInput in rawInputs)
+        if (previousAction != null &&
+            previousAction != action &&
+            !forceMap)
         {
-            if (!RawInputToActionsMap.TryGetValue(rawInput, out var actions)) continue;
+            otherAction = previousAction;
 
-            var modifier = GetModifier(isWithCtrl, isWithAlt, isWithShift);
-            var rawIndex = GetRawActionIndexByModifier(modifier);
-            var action = actions[rawIndex];
-
-            if (action == null) continue;
-
-            if (IsApplicableToAction(rawInput, action.Type)) action.Action?.Invoke();
+            return InputBinderResults.InputBoundToOtherAction;
         }
+
+        TryUnmapInputFromAction(previousAction, _actionToInputsMap.GetInputIndex(previousAction, input));
+
+        if (!_actionToInputsMap.SetInputAt(action, inputIndex, input)) return  InputBinderResults.Failure;
+
+        _inputToActionMap.MapActionToInput(input, action);
+
+        return InputBinderResults.Success;
     }
+
+    public InputBinderResults TryUnmapInputFromAction(BaseAction action, int inputIndex)
+    {
+        if (action == null) return InputBinderResults.ActionNull;
+        if (inputIndex < 0 ||
+            inputIndex >= InputBindingsPerAction)
+            return InputBinderResults.IndexOutsideOfRange;
+
+        var input = _actionToInputsMap.GetInputAt(action, inputIndex);
+
+        if (input == null) return InputBinderResults.Failure;
+
+        _inputToActionMap.RemoveInput(input);
+        _actionToInputsMap.SetInputAt(action, inputIndex, null);
+
+        return InputBinderResults.Success;
+    }
+
+    #region Updater
+    public void Update(IEnumerable<ButtonInput> buttonInputs,
+        IEnumerable<OneAxisInput> oneAxisInputs,
+        IEnumerable<TwoAxesInput> twoAxesInputs,
+        bool withShift,
+        bool withCtrl,
+        bool withAlt)
+    {
+        foreach (var buttonInput in buttonInputs)
+        {
+            InvokeWithModifier(buttonInput, ButtonModifiers.None);
+
+            if (buttonInput.Source != InputSources.Keyboard) continue;
+
+            if (withShift) InvokeWithModifier(buttonInput, ButtonModifiers.Shift);
+            if (withCtrl) InvokeWithModifier(buttonInput, ButtonModifiers.Ctrl);
+            if (withAlt) InvokeWithModifier(buttonInput, ButtonModifiers.Alt);
+        }
+
+        foreach (var oneAxisInput in oneAxisInputs) _inputToActionMap.InvokeAction(oneAxisInput);
+        foreach (var twoAxesInput in twoAxesInputs) _inputToActionMap.InvokeAction(twoAxesInput);
+    }
+    #endregion
 
     #region Helpers
-    private static void AddInput(Input input, GameAction action, int index)
+    private void InvokeWithModifier(ButtonInput input, ButtonModifiers modifier)
     {
-        // check if we will overwrite previous input in new place
-        RemoveInput(ActionToInputsMap[action][index]);
-
-        ActionToInputsMap[action][index] = input;
-
-        InputToActionMap.Add(input, action);
-
-        var rawInput = GetRawInput(input);
-
-        if (!RawInputToActionsMap.TryGetValue(rawInput, out var actions))
-        {
-            actions = new GameAction[4];
-            RawInputToActionsMap.Add(rawInput, actions);
-        }
-
-        actions[GetRawActionIndexByModifier(input.Modifier)] = action;
-    }
-
-    private static void RemoveInput(Input input)
-    {
-        if (input == null) return;
-        if (!InputToActionMap.TryGetValue(input, out var action)) return;
-        if (!ActionToInputsMap.TryGetValue(action, out var inputs)) return;
-
-        var rawInput = GetRawInput(input);
-
-        if (!RawInputToActionsMap.TryGetValue(rawInput, out var actions)) return;
-
-        for (var i = 0; i < inputs.Length; i++)
-        {
-            if (!inputs[i].Equals(input)) continue;
-
-            inputs[i] = null;
-
-            break;
-        }
-
-        InputToActionMap.Remove(input);
-
-        RemoveFromRawMap(actions, input.Modifier, rawInput);
-    }
-
-    private static void RemoveFromRawMap(GameAction[] actions, ModifierType inputModifier, RawInput rawInput)
-    {
-        actions[GetRawActionIndexByModifier(inputModifier)] = null;
-
-        if (actions.All(a => a == null)) RawInputToActionsMap.Remove(rawInput);
-    }
-
-    private static ModifierType GetModifier(bool isWithCtrl, bool isWithAlt, bool isWithShift)
-    {
-        return isWithCtrl ?
-            ModifierType.Ctrl :
-            isWithAlt ?
-                ModifierType.Alt :
-                isWithShift ?
-                    ModifierType.Shift :
-                    ModifierType.None;
-    }
-
-    private static int GetRawActionIndexByModifier(ModifierType modifier)
-    {
-        return modifier switch
-        {
-            ModifierType.Ctrl => 1,
-            ModifierType.Alt => 2,
-            ModifierType.Shift => 3,
-            _ => 0
-        };
-    }
-
-    private static RawInput GetRawInput(Input input)
-    {
-        if (input == null) return null;
-
-        return input is AxisInput axisInput ?
-            new RawAxisInput
-            {
-                DeviceType = axisInput.DeviceType,
-                Code = axisInput.Code,
-                IsPositive = axisInput.IsPositive
-            } :
-            new RawButtonInput
-            {
-                DeviceType = input.DeviceType,
-                Code = input.Code
-            };
-    }
-
-    private static bool IsApplicableToAction(RawInput rawInput, GameActionType actionType)
-    {
-        if (rawInput is RawAxisInput) return true;
-        if (actionType == GameActionType.Сontinuous) return true;
-
-        return rawInput is RawButtonInput { State: ButtonState.Pressed };
+        input.Modifier = modifier;
+        _inputToActionMap.InvokeAction(input);
     }
     #endregion
 }
