@@ -5,14 +5,13 @@ public class TwoAxesInput : BaseInput, IEquatable<TwoAxesInput>
     private readonly int _hashCode;
     private readonly int _axesId;
 
-    internal readonly Vector2 Value;
+    public Vector2 Value { get; init; }
 
-    public TwoAxesInput(InputSources source, int axesId, Vector2 value, int playerNumber = 0)
-        : base(source, InputTypes.TwoAxes, playerNumber)
+    public TwoAxesInput(InputSources source, int axesId)
+        : base(source, InputTypes.TwoAxes)
     {
         _hashCode = CalculateHashCode(axesId, -1);
         _axesId = axesId;
-        Value = value;
     }
 
     #region Equality

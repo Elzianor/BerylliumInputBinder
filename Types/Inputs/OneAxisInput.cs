@@ -5,14 +5,13 @@ public class OneAxisInput : BaseInput, IEquatable<OneAxisInput>
     private readonly int _hashCode;
     private readonly int _axisId;
 
-    internal readonly float Value;
+    public float Value { get; init; }
 
-    public OneAxisInput(InputSources source, int axisId, float value, int playerNumber = 0)
-        : base(source, InputTypes.OneAxis, playerNumber)
+    public OneAxisInput(InputSources source, int axisId)
+        : base(source, InputTypes.OneAxis)
     {
         _hashCode = CalculateHashCode(axisId, -1);
         _axisId = axisId;
-        Value = value;
     }
 
     #region Equality

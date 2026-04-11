@@ -5,8 +5,6 @@ public class ButtonInput : BaseInput, IEquatable<ButtonInput>
     private int _hashCode;
     private readonly int _button;
 
-    internal readonly ButtonStates State;
-
     internal ButtonModifiers Modifier
     {
         get;
@@ -17,15 +15,12 @@ public class ButtonInput : BaseInput, IEquatable<ButtonInput>
         }
     }
 
-    public ButtonInput(InputSources source,
-        int button,
-        ButtonStates state,
-        ButtonModifiers modifier = ButtonModifiers.None,
-        int playerNumber = 0)
-        : base(source, InputTypes.Button, playerNumber)
+    public ButtonStates State { get; init; }
+
+    public ButtonInput(InputSources source, int button, ButtonModifiers modifier = ButtonModifiers.None)
+        : base(source, InputTypes.Button)
     {
         _button = button;
-        State = state;
 
         Modifier = source == InputSources.Keyboard ? modifier : ButtonModifiers.None;
     }

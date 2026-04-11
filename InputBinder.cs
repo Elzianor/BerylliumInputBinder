@@ -19,16 +19,16 @@ public class InputBinder
         return action == null ? InputBinderResults.ActionNull : _actionToInputsMap.TryRegisterAction(action);
     }
 
-    public InputBinderResults TryUnregisterAction(BaseAction action)
+    public InputBinderResults TryUnregisterAction(string actionName)
     {
-        if (action == null) return InputBinderResults.ActionNull;
+        var action = _actionToInputsMap.GetActionByName(actionName);
 
         foreach (var input in _actionToInputsMap.GetInputs(action)) _inputToActionMap.RemoveInput(input);
 
         return _actionToInputsMap.TryUnregisterAction(action);
     }
 
-    public InputBinderResults TryMapInputToAction(BaseAction action,
+    public InputBinderResults TryMapInputToAction(string actionName,
         int inputIndex,
         BaseInput input,
         bool forceMap,
@@ -37,6 +37,9 @@ public class InputBinder
         otherAction = null;
 
         if (input == null) return InputBinderResults.InputNull;
+
+        var action = _actionToInputsMap.GetActionByName(actionName);
+
         if (action == null) return  InputBinderResults.ActionNull;
         if (inputIndex < 0 ||
             inputIndex >= InputBindingsPerAction)
@@ -58,16 +61,60 @@ public class InputBinder
             return InputBinderResults.InputBoundToOtherAction;
         }
 
-        TryUnmapInputFromAction(previousAction, _actionToInputsMap.GetInputIndex(previousAction, input));
+        if (previousAction != null) TryUnmapInputFromAction(previousAction, _actionToInputsMap.GetInputIndex(previousAction, input));
 
-        if (!_actionToInputsMap.SetInputAt(action, inputIndex, input)) return  InputBinderResults.Failure;
+        if (!_actionToInputsMap.SetInputAt(action, inputIndex, input)) return InputBinderResults.Failure;
 
         _inputToActionMap.MapActionToInput(input, action);
 
         return InputBinderResults.Success;
     }
 
-    public InputBinderResults TryUnmapInputFromAction(BaseAction action, int inputIndex)
+    public InputBinderResults TryUnmapInputFromAction(string actionName, int inputIndex)
+    {
+        var action = _actionToInputsMap.GetActionByName(actionName);
+
+        return TryUnmapInputFromAction(action, inputIndex);
+    }
+
+    #region Updater
+    public void Update(IEnumerable<ButtonInput> buttonInputs,
+        IEnumerable<OneAxisInput> oneAxisInputs,
+        IEnumerable<TwoAxesInput> twoAxesInputs,
+        bool withShift,
+        bool withCtrl,
+        bool withAlt)
+    {
+        if (buttonInputs != null)
+            foreach (var buttonInput in buttonInputs)
+            {
+                InvokeWithModifier(buttonInput, ButtonModifiers.None);
+
+                if (buttonInput.Source != InputSources.Keyboard) continue;
+
+                if (withShift) InvokeWithModifier(buttonInput, ButtonModifiers.Shift);
+                if (withCtrl) InvokeWithModifier(buttonInput, ButtonModifiers.Ctrl);
+                if (withAlt) InvokeWithModifier(buttonInput, ButtonModifiers.Alt);
+            }
+
+        if (oneAxisInputs != null)
+            foreach (var oneAxisInput in oneAxisInputs)
+                _inputToActionMap.InvokeAction(oneAxisInput);
+
+        if (twoAxesInputs != null)
+            foreach (var twoAxesInput in twoAxesInputs)
+                _inputToActionMap.InvokeAction(twoAxesInput);
+    }
+    #endregion
+
+    #region Helpers
+    private void InvokeWithModifier(ButtonInput input, ButtonModifiers modifier)
+    {
+        input.Modifier = modifier;
+        _inputToActionMap.InvokeAction(input);
+    }
+
+    private InputBinderResults TryUnmapInputFromAction(BaseAction action, int inputIndex)
     {
         if (action == null) return InputBinderResults.ActionNull;
         if (inputIndex < 0 ||
@@ -82,37 +129,6 @@ public class InputBinder
         _actionToInputsMap.SetInputAt(action, inputIndex, null);
 
         return InputBinderResults.Success;
-    }
-
-    #region Updater
-    public void Update(IEnumerable<ButtonInput> buttonInputs,
-        IEnumerable<OneAxisInput> oneAxisInputs,
-        IEnumerable<TwoAxesInput> twoAxesInputs,
-        bool withShift,
-        bool withCtrl,
-        bool withAlt)
-    {
-        foreach (var buttonInput in buttonInputs)
-        {
-            InvokeWithModifier(buttonInput, ButtonModifiers.None);
-
-            if (buttonInput.Source != InputSources.Keyboard) continue;
-
-            if (withShift) InvokeWithModifier(buttonInput, ButtonModifiers.Shift);
-            if (withCtrl) InvokeWithModifier(buttonInput, ButtonModifiers.Ctrl);
-            if (withAlt) InvokeWithModifier(buttonInput, ButtonModifiers.Alt);
-        }
-
-        foreach (var oneAxisInput in oneAxisInputs) _inputToActionMap.InvokeAction(oneAxisInput);
-        foreach (var twoAxesInput in twoAxesInputs) _inputToActionMap.InvokeAction(twoAxesInput);
-    }
-    #endregion
-
-    #region Helpers
-    private void InvokeWithModifier(ButtonInput input, ButtonModifiers modifier)
-    {
-        input.Modifier = modifier;
-        _inputToActionMap.InvokeAction(input);
     }
     #endregion
 }

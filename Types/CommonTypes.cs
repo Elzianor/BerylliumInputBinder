@@ -26,17 +26,17 @@ public enum InputTypes
     TwoAxes
 }
 
-public enum ButtonStates
-{
-    Pressed,
-    Down,
-    Up
-}
-
 public enum ButtonModifiers
 {
     None,
     Shift,
     Ctrl,
     Alt
+}
+
+public enum ButtonStates
+{
+    Pressed,
+    Down,
+    Up
 }

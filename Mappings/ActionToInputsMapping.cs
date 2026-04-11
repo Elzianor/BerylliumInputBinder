@@ -24,6 +24,11 @@ internal class ActionToInputsMapping
             InputBinderResults.Failure;
     }
 
+    public BaseAction GetActionByName(string actionName)
+    {
+        return ActionToInputsMap.Keys.FirstOrDefault(a => a.Name == actionName);
+    }
+
     public BaseInput[] GetInputs(BaseAction action)
     {
         return ActionToInputsMap.GetValueOrDefault(action);

@@ -4,15 +4,14 @@ public abstract class BaseInput
 {
     internal readonly InputSources Source;
     internal readonly InputTypes Type;
-    internal readonly int PlayerNumber;
 
     public object Representation { get; init; }
+    public int PlayerNumber { get; init; }
 
-    protected BaseInput(InputSources source, InputTypes type, int playerNumber)
+    protected BaseInput(InputSources source, InputTypes type)
     {
         Source = source;
         Type = type;
-        PlayerNumber = playerNumber;
     }
 
     public abstract override bool Equals(object obj);
